@@ -47,10 +47,9 @@ class PulmoFeatureExtractor:
             image = cv2.resize(image, (224, 224))
             
             features = []
-            feature_names = []
             
             # 1. Fitur warna (RGB channels)
-            for i, channel_name in enumerate(['Red', 'Green', 'Blue']):
+            for i in range(3):
                 channel_data = image[:, :, i].flatten()
                 features.extend([
                     np.mean(channel_data),
@@ -58,13 +57,6 @@ class PulmoFeatureExtractor:
                     np.median(channel_data),
                     np.min(channel_data),
                     np.max(channel_data)
-                ])
-                feature_names.extend([
-                    f'{channel_name}_mean',
-                    f'{channel_name}_std',
-                    f'{channel_name}_median',
-                    f'{channel_name}_min',
-                    f'{channel_name}_max'
                 ])
             
             # 2. Convert to grayscale untuk fitur tekstur
@@ -80,9 +72,6 @@ class PulmoFeatureExtractor:
                 float(np.max(hist))
             ]
             features.extend(hist_features)
-            feature_names.extend([
-                'hist_mean', 'hist_std', 'hist_median', 'hist_min', 'hist_max'
-            ])
             
             # 4. Fitur tekstur menggunakan gradient
             sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=5)
@@ -95,9 +84,6 @@ class PulmoFeatureExtractor:
                 np.median(gradient_magnitude)
             ]
             features.extend(gradient_features)
-            feature_names.extend([
-                'gradient_mean', 'gradient_std', 'gradient_median'
-            ])
             
             # 5. Fitur bentuk dan kontur
             _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
@@ -116,7 +102,6 @@ class PulmoFeatureExtractor:
                 
             shape_features = [area, perimeter, circularity]
             features.extend(shape_features)
-            feature_names.extend(['contour_area', 'contour_perimeter', 'circularity'])
             
             # 6. Statistical texture features
             texture_features = [
@@ -128,23 +113,16 @@ class PulmoFeatureExtractor:
                 np.percentile(gray, 75),
             ]
             features.extend(texture_features)
-            feature_names.extend([
-                'gray_mean', 'gray_std', 'gray_median', 'gray_var', 
-                'gray_q25', 'gray_q75'
-            ])
             
             # 7. Fitur entropy dan statistik lanjutan
             hist_norm = hist / hist.sum()
             hist_norm = hist_norm[hist_norm > 0]
             entropy = -np.sum(hist_norm * np.log2(hist_norm))
             features.append(entropy)
-            feature_names.append('entropy')
             
             features.append(skew(gray.flatten()))
             features.append(kurtosis(gray.flatten()))
-            feature_names.extend(['skewness', 'kurtosis'])
             
-            self.feature_names = feature_names
             return np.array(features, dtype=np.float64)
             
         except Exception as e:
@@ -165,7 +143,6 @@ class PulmoNaiveBayesClassifier:
         """Load dataset dari folder"""
         X = []
         y = []
-        file_paths = []
         
         print("Loading dataset untuk Naive Bayes...")
         
@@ -186,7 +163,6 @@ class PulmoNaiveBayesClassifier:
                     if features is not None:
                         X.append(features)
                         y.append(class_name)
-                        file_paths.append(image_path)
                         count += 1
                         
                         if count % 50 == 0:
@@ -196,9 +172,9 @@ class PulmoNaiveBayesClassifier:
         
         if len(X) == 0:
             print("Tidak ada gambar yang berhasil diproses!")
-            return np.array([]), np.array([]), []
+            return np.array([]), np.array([])
             
-        return np.array(X), np.array(y), file_paths
+        return np.array(X), np.array(y)
     
     def train(self, X_train, y_train):
         """Training model Naive Bayes"""
@@ -241,47 +217,6 @@ class PulmoNaiveBayesClassifier:
         X_scaled = self.scaler.transform(X)
         X_pca = self.pca.transform(X_scaled)
         return self.model.predict_proba(X_pca)
-    
-    def evaluate(self, X_test, y_test):
-        """Evaluasi model Naive Bayes"""
-        print("Evaluating Naive Bayes model...")
-        if len(X_test) == 0:
-            print("No test data available!")
-            return np.array([]), 0.0
-            
-        y_pred = self.predict(X_test)
-        
-        accuracy = accuracy_score(y_test, y_pred)
-        print("=" * 60)
-        print("🎯 HYBRID PULMO CLASSIFIER - HASIL NAIVE BAYES")
-        print("=" * 60)
-        print("Naive Bayes Accuracy: {:.2f}%".format(accuracy * 100))
-        print("=" * 60)
-        print("\nClassification Report:\n", classification_report(y_test, y_pred))
-        
-        return y_pred, accuracy
-    
-    def plot_confusion_matrix(self, y_test, y_pred, model_name="Naive Bayes"):
-        """Plot confusion matrix"""
-        if len(y_test) == 0:
-            print("No data for confusion matrix")
-            return None
-            
-        cm = confusion_matrix(y_test, y_pred, labels=self.classes)
-        
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                   xticklabels=self.classes, 
-                   yticklabels=self.classes)
-        plt.xlabel('Predicted')
-        plt.ylabel('Actual')
-        plt.title(f'HybridPulmoClassifier - Confusion Matrix ({model_name})')
-        plt.tight_layout()
-        filename = f'hybrid_pulmo_confusion_matrix_{model_name.lower().replace(" ", "_")}.png'
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-        plt.show()
-        
-        return cm
     
     def save_model(self, filename='models/pulmo_naive_bayes.pkl'):
         """Save model Naive Bayes ke file"""
@@ -404,7 +339,7 @@ class PulmoCNNClassifier:
         """Create PyTorch dataset dari folder"""
         return PulmoDataset(data_dir, self.transform[split], self.classes)
     
-    def train_model(self, train_dir, val_dir, epochs=25, batch_size=8):
+    def train_model(self, train_dir, val_dir, epochs=35, batch_size=8):
         """Train CNN model"""
         print("🚀 Starting CNN Training with Transfer Learning...")
         
@@ -519,63 +454,13 @@ class PulmoCNNClassifier:
             # Save best model
             if val_accuracy > best_accuracy:
                 best_accuracy = val_accuracy
-                self.save_model('models/pulmo_cnn_best.pth')
+                self.save_model('models/pulmo_cnn.pth')
                 print(f'✅ New best model saved with accuracy: {best_accuracy:.4f}')
             
             scheduler.step()
         
         print(f'\n🎉 CNN Training completed! Best accuracy: {best_accuracy:.4f}')
         return train_losses, val_accuracies
-    
-    def evaluate_model(self, test_dir, batch_size=8):
-        """Evaluate CNN model"""
-        print("Evaluating CNN model...")
-        
-        test_dataset = self.create_dataset(test_dir, 'val')
-        if len(test_dataset) == 0:
-            print("❌ No test data found!")
-            return [], [], np.array([]), 0.0
-            
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-        
-        self.model.eval()
-        all_preds = []
-        all_labels = []
-        all_probs = []
-        
-        print("Testing...")
-        with torch.no_grad():
-            for inputs, labels in test_loader:
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                
-                outputs = self.model(inputs)
-                probs = torch.softmax(outputs, 1)
-                _, preds = torch.max(outputs, 1)
-                
-                all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-                all_probs.extend(probs.cpu().numpy())
-        
-        # Convert to numpy arrays
-        all_preds = np.array(all_preds)
-        all_labels = np.array(all_labels)
-        all_probs = np.array(all_probs)
-        
-        # Convert numeric labels back to class names
-        y_true = [self.classes[label] for label in all_labels]
-        y_pred = [self.classes[pred] for pred in all_preds]
-        
-        accuracy = accuracy_score(y_true, y_pred)
-        
-        print("=" * 60)
-        print("🧠 HYBRID PULMO CLASSIFIER - HASIL CNN")
-        print("=" * 60)
-        print(f"CNN Accuracy: {accuracy * 100:.2f}%")
-        print("=" * 60)
-        print("\nClassification Report:\n", classification_report(y_true, y_pred))
-        
-        return y_true, y_pred, all_probs, accuracy
     
     def predict_single_image(self, image_path):
         """Predict single image"""
@@ -634,7 +519,7 @@ class HybridPulmoClassifier:
         self.classes = ['normal', 'benign', 'malignant']
         self.hybrid_weights = {'nb': 0.4, 'cnn': 0.6}  # Bobot untuk ensemble
         
-    def train_hybrid(self, data_dir, train_dir, val_dir, epochs=25, batch_size=8):
+    def train_hybrid(self, data_dir, train_dir, val_dir, epochs=35, batch_size=8):
         """Train kedua model untuk sistem hybrid"""
         print("🚀 HYBRID PULMO CLASSIFIER - TRAINING SYSTEM")
         print("=" * 70)
@@ -644,10 +529,9 @@ class HybridPulmoClassifier:
         print("🧪 TRAINING NAIVE BAYES MODEL")
         print("="*50)
         
-        X, y, file_paths = self.nb_classifier.load_dataset(data_dir)
+        X, y = self.nb_classifier.load_dataset(data_dir)
         
         if len(X) > 0:
-            # PERBAIKAN: gunakan random_state bukan random_size
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42, stratify=y
             )
@@ -656,12 +540,6 @@ class HybridPulmoClassifier:
             print(f"Testing set: {X_test.shape[0]} samples")
             
             self.nb_classifier.train(X_train, y_train)
-            y_pred_nb, accuracy_nb = self.nb_classifier.evaluate(X_test, y_test)
-            
-            # Plot confusion matrix untuk Naive Bayes
-            if len(y_test) > 0:
-                self.nb_classifier.plot_confusion_matrix(y_test, y_pred_nb, "Naive Bayes")
-            
             self.nb_classifier.save_model('models/pulmo_naive_bayes.pkl')
         else:
             print("❌ Tidak ada data untuk training Naive Bayes")
@@ -709,101 +587,127 @@ class HybridPulmoClassifier:
         plt.savefig('hybrid_pulmo_cnn_training_history.png', dpi=300, bbox_inches='tight')
         plt.show()
     
-    def predict_hybrid(self, image_path):
-        """Prediksi hybrid menggunakan kedua model"""
-        print(f"\n🔍 Hybrid Prediction untuk: {os.path.basename(image_path)}")
+    def predict_hybrid(self, image_path, verbose=True):
+        """Prediksi hybrid menggunakan kedua model - Hanya tampilkan hasil akhir"""
+        if not os.path.exists(image_path):
+            print(f"❌ File {image_path} tidak ditemukan")
+            return None
         
         # Prediksi dengan Naive Bayes
         features = self.nb_classifier.feature_extractor.extract_features(image_path)
         if features is not None:
             nb_proba = self.nb_classifier.predict_proba([features])[0]
-            nb_pred = self.nb_classifier.predict([features])[0]
         else:
             nb_proba = np.array([0.33, 0.33, 0.33])
-            nb_pred = "unknown"
         
         # Prediksi dengan CNN
         cnn_pred, cnn_proba = self.cnn_classifier.predict_single_image(image_path)
-        
         if cnn_pred is None or cnn_proba is None:
             cnn_proba = np.array([0.33, 0.33, 0.33])
-            cnn_pred = "unknown"
         
         # Gabungkan probabilitas dengan weighted average
         hybrid_proba = (self.hybrid_weights['nb'] * nb_proba + 
                        self.hybrid_weights['cnn'] * np.array(cnn_proba))
         
         hybrid_pred = self.classes[np.argmax(hybrid_proba)]
+        confidence = max(hybrid_proba)
         
-        # Tampilkan hasil
-        print("\n" + "="*50)
-        print("🤖 HYBRID PULMO CLASSIFIER - PREDICTION RESULTS")
-        print("="*50)
-        print(f"Naive Bayes Prediction: {nb_pred}")
-        print(f"CNN Prediction: {cnn_pred}")
-        print(f"Hybrid Prediction: {hybrid_pred}")
-        print("\nProbabilities:")
-        for i, class_name in enumerate(self.classes):
-            print(f"  {class_name}: {hybrid_proba[i]:.3f}")
-        print("="*50)
+        # Hanya tampilkan hasil jika verbose=True
+        if verbose:
+            print("\n" + "="*60)
+            print("🤖 HYBRID PULMO CLASSIFIER - PREDICTION RESULT")
+            print("="*60)
+            print(f"🎯 PREDIKSI: {hybrid_pred.upper()}")
+            print(f"📊 CONFIDENCE: {confidence*100:.1f}%")
+            print("\nProbabilitas Akhir:")
+            for i, class_name in enumerate(self.classes):
+                prob_percent = hybrid_proba[i] * 100
+                print(f"  {class_name.upper()}: {prob_percent:.1f}%")
+            print("="*60)
+            
+            # Tampilkan rekomendasi
+            self.display_recommendation(hybrid_pred, confidence)
         
         return {
-            'hybrid_prediction': hybrid_pred,
-            'hybrid_probabilities': dict(zip(self.classes, hybrid_proba)),
-            'naive_bayes_prediction': nb_pred,
-            'naive_bayes_probabilities': dict(zip(self.classes, nb_proba)),
-            'cnn_prediction': cnn_pred,
-            'cnn_probabilities': dict(zip(self.classes, cnn_proba))
+            'prediction': hybrid_pred,
+            'confidence': confidence,
+            'probabilities': dict(zip(self.classes, hybrid_proba)),
+            'file': os.path.basename(image_path)
         }
+    
+    def display_recommendation(self, prediction, confidence):
+        """Tampilkan rekomendasi berdasarkan prediksi"""
+        print(f"\n💡 REKOMENDASI:")
+        if prediction == 'normal':
+            print("✅ STATUS: NORMAL - Paru-paru dalam kondisi sehat")
+            print("   ✅ Tidak diperlukan tindakan khusus")
+            print("   💡 Tetap jaga kesehatan dengan pola hidup sehat")
+        elif prediction == 'benign':
+            print("⚠️ STATUS: JINAK - Tumor jinak terdeteksi")
+            print("   📋 Disarankan konsultasi rutin dengan dokter")
+            print("   🔍 Monitoring berkala diperlukan")
+            if confidence < 0.7:
+                print("   ⚠️  Confidence rendah, disarankan pemeriksaan ulang")
+        elif prediction == 'malignant':
+            print("🚨 STATUS: GANAS - Kanker ganas terdeteksi")
+            print("   🏥 Segera konsultasi dengan dokter spesialis onkologi")
+            print("   ⚡ Penanganan medis segera diperlukan")
+            if confidence < 0.8:
+                print("   ⚠️  Confidence sedang, konfirmasi dengan pemeriksaan tambahan")
     
     def evaluate_hybrid(self, test_dir):
         """Evaluasi sistem hybrid pada test set"""
         print("\n" + "="*60)
-        print("📊 HYBRID PULMO CLASSIFIER - COMPREHENSIVE EVALUATION")
+        print("📊 HYBRID PULMO CLASSIFIER - EVALUATION")
         print("="*60)
         
-        accuracy_nb = 0.0
-        accuracy_cnn = 0.0
-        
-        # Evaluasi Naive Bayes
-        print("\n🧪 EVALUATING NAIVE BAYES MODEL...")
-        X_test, y_test_nb, _ = self.nb_classifier.load_dataset(test_dir)
-        if len(X_test) > 0:
-            y_pred_nb, accuracy_nb = self.nb_classifier.evaluate(X_test, y_test_nb)
-        
-        # Evaluasi CNN
-        print("\n🧠 EVALUATING CNN MODEL...")
-        y_true_cnn, y_pred_cnn, cnn_probs, accuracy_cnn = self.cnn_classifier.evaluate_model(test_dir)
-        
-        # Evaluasi Hybrid
-        print("\n🤖 EVALUATING HYBRID SYSTEM...")
         hybrid_predictions = []
         hybrid_true = []
+        results_by_class = {'normal': [], 'benign': [], 'malignant': []}
         
         for class_name in self.classes:
             class_dir = os.path.join(test_dir, class_name)
             if os.path.exists(class_dir):
+                print(f"\n🔍 Processing {class_name} images...")
+                count = 0
+                
                 for filename in os.listdir(class_dir):
                     if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff')):
                         image_path = os.path.join(class_dir, filename)
-                        result = self.predict_hybrid(image_path)
-                        hybrid_predictions.append(result['hybrid_prediction'])
-                        hybrid_true.append(class_name)
+                        
+                        # Gunakan verbose=False untuk menghindari output berulang
+                        result = self.predict_hybrid(image_path, verbose=False)
+                        if result:
+                            hybrid_predictions.append(result['prediction'])
+                            hybrid_true.append(class_name)
+                            results_by_class[class_name].append(result)
+                            count += 1
+                
+                print(f"✅ Processed {count} {class_name} images")
         
         if hybrid_true:
-            hybrid_accuracy = accuracy_score(hybrid_true, hybrid_predictions)
-            print("=" * 60)
-            print("🎯 HYBRID PULMO CLASSIFIER - FINAL RESULTS")
-            print("=" * 60)
-            print(f"Naive Bayes Accuracy: {accuracy_nb * 100:.2f}%")
-            print(f"CNN Accuracy: {accuracy_cnn * 100:.2f}%")
-            print(f"Hybrid System Accuracy: {hybrid_accuracy * 100:.2f}%")
-            print("=" * 60)
-            print("\nHybrid Classification Report:\n", 
-                  classification_report(hybrid_true, hybrid_predictions))
+            # Tampilkan summary per kelas
+            print("\n" + "="*60)
+            print("🎯 HASIL EVALUASI SISTEM HYBRID")
+            print("="*60)
             
-            # Plot comparison
-            self.plot_accuracy_comparison(accuracy_nb, accuracy_cnn, hybrid_accuracy)
+            for class_name in self.classes:
+                if results_by_class[class_name]:
+                    correct_predictions = sum(1 for r in results_by_class[class_name] 
+                                           if r['prediction'] == class_name)
+                    total = len(results_by_class[class_name])
+                    accuracy = correct_predictions / total * 100
+                    avg_confidence = np.mean([r['confidence'] for r in results_by_class[class_name]]) * 100
+                    
+                    print(f"\n📊 {class_name.upper()}:")
+                    print(f"   ✅ Akurasi: {accuracy:.1f}% ({correct_predictions}/{total})")
+                    print(f"   📈 Confidence rata-rata: {avg_confidence:.1f}%")
+            
+            hybrid_accuracy = accuracy_score(hybrid_true, hybrid_predictions)
+            print(f"\n📈 AKURASI KESELURUHAN: {hybrid_accuracy * 100:.2f}%")
+            print(f"📊 TOTAL SAMPLE TEST: {len(hybrid_true)}")
+            print("="*60)
+            print("\nLaporan Klasifikasi:\n", classification_report(hybrid_true, hybrid_predictions))
             
             # Plot confusion matrix untuk hybrid
             cm_hybrid = confusion_matrix(hybrid_true, hybrid_predictions, labels=self.classes)
@@ -813,9 +717,9 @@ class HybridPulmoClassifier:
                        yticklabels=self.classes)
             plt.xlabel('Predicted')
             plt.ylabel('Actual')
-            plt.title('HybridPulmoClassifier - Confusion Matrix (Hybrid System)')
+            plt.title('HybridPulmoClassifier - Confusion Matrix')
             plt.tight_layout()
-            plt.savefig('hybrid_pulmo_confusion_matrix_hybrid.png', dpi=300, bbox_inches='tight')
+            plt.savefig('hybrid_pulmo_confusion_matrix.png', dpi=300, bbox_inches='tight')
             plt.show()
             
             return hybrid_accuracy
@@ -823,25 +727,86 @@ class HybridPulmoClassifier:
             print("❌ Tidak ada data untuk evaluasi hybrid")
             return 0.0
     
-    def plot_accuracy_comparison(self, nb_accuracy, cnn_accuracy, hybrid_accuracy):
-        """Plot perbandingan akurasi model"""
-        models = ['Naive Bayes', 'CNN', 'Hybrid System']
-        accuracies = [nb_accuracy, cnn_accuracy, hybrid_accuracy]
+    def batch_predict_hybrid(self, folder_path):
+        """Prediksi semua gambar dalam folder dengan sistem hybrid - Tampilkan summary saja"""
+        if not os.path.exists(folder_path):
+            print(f"❌ Folder {folder_path} tidak ditemukan")
+            return
         
-        plt.figure(figsize=(10, 6))
-        bars = plt.bar(models, accuracies, color=['#3498db', '#9b59b6', '#2ecc71'])
-        plt.ylim(0, 1)
-        plt.ylabel('Accuracy')
-        plt.title('HybridPulmoClassifier - Model Accuracy Comparison')
+        print(f"\n🔍 Memproses gambar di folder: {folder_path}")
         
-        # Tambah nilai di atas bar
-        for bar, accuracy in zip(bars, accuracies):
-            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
-                    f'{accuracy:.3f}', ha='center', va='bottom')
+        results = []
+        predictions_count = {'normal': 0, 'benign': 0, 'malignant': 0}
+        supported_formats = ('.png', '.jpg', '.jpeg', '.bmp', '.tiff')
         
-        plt.tight_layout()
-        plt.savefig('hybrid_pulmo_accuracy_comparison.png', dpi=300, bbox_inches='tight')
-        plt.show()
+        file_list = [f for f in os.listdir(folder_path) 
+                    if f.lower().endswith(supported_formats)]
+        
+        if not file_list:
+            print("❌ Tidak ada gambar yang ditemukan dalam folder")
+            return
+        
+        print(f"📁 Ditemukan {len(file_list)} gambar")
+        print("⏳ Memproses...")
+        
+        for i, filename in enumerate(file_list, 1):
+            image_path = os.path.join(folder_path, filename)
+            
+            # Progress indicator sederhana
+            if i % 10 == 0 or i == len(file_list):
+                print(f"  Progress: {i}/{len(file_list)}")
+            
+            try:
+                # Gunakan verbose=False untuk menghindari output berulang
+                result = self.predict_hybrid(image_path, verbose=False)
+                
+                if result:
+                    results.append(result)
+                    predictions_count[result['prediction']] += 1
+                else:
+                    print(f"   ❌ Gagal memproses: {filename}")
+                    
+            except Exception as e:
+                print(f"   ❌ Error pada {filename}: {e}")
+        
+        # Tampilkan summary hasil
+        if results:
+            print(f"\n" + "="*60)
+            print("📈 HYBRID PULMO CLASSIFIER - BATCH PREDICTION SUMMARY")
+            print("="*60)
+            print(f"📊 Total gambar diproses: {len(results)}")
+            
+            print(f"\n🎯 DISTRIBUSI HASIL:")
+            for class_name in ['normal', 'benign', 'malignant']:
+                count = predictions_count[class_name]
+                percentage = (count / len(results)) * 100
+                confidence_avg = np.mean([r['confidence'] for r in results if r['prediction'] == class_name]) * 100 if count > 0 else 0
+                
+                print(f"   {class_name.upper()}: {count} gambar ({percentage:.1f}%)")
+                if count > 0:
+                    print(f"     📊 Confidence rata-rata: {confidence_avg:.1f}%")
+            
+            # Tampilkan 3 contoh pertama dari setiap kelas
+            print(f"\n🔍 CONTOH HASIL PREDIKSI:")
+            displayed_examples = 0
+            for class_name in ['normal', 'benign', 'malignant']:
+                class_results = [r for r in results if r['prediction'] == class_name]
+                if class_results:
+                    # Ambil maksimal 2 contoh per kelas
+                    examples = class_results[:2]
+                    for example in examples:
+                        print(f"\n   📄 File: {example['file']}")
+                        print(f"   🎯 Prediksi: {example['prediction'].upper()}")
+                        print(f"   📊 Confidence: {example['confidence']*100:.1f}%")
+                        displayed_examples += 1
+            
+            print(f"\n💡 Total contoh ditampilkan: {displayed_examples} dari {len(results)} gambar")
+            print("="*60)
+            
+            return results
+        else:
+            print("❌ Tidak ada hasil prediksi yang berhasil")
+            return []
     
     def save_models(self):
         """Save semua model"""
@@ -926,7 +891,7 @@ def main():
     # Inisialisasi Hybrid Classifier
     hybrid_classifier = HybridPulmoClassifier()
     
-    print("🚀 HYBRID PULMO CLASSIFIER - MULTI-MODEL TRAINING SYSTEM")
+    print("🚀 HYBRID PULMO CLASSIFIER - TRAINING SYSTEM")
     print("=" * 70)
     print("Sistem Hybrid CNN-Naive Bayes untuk Klasifikasi Kanker Paru-paru")
     print("=" * 70)
@@ -944,9 +909,9 @@ def main():
     # Train hybrid system
     hybrid_classifier.train_hybrid(
         data_dir='data/train',
-        train_dir='data/train',
+        train_dir='data/train'
         val_dir='data/val',
-        epochs=25,  # Reduced for faster training
+        epochs=35,
         batch_size=8
     )
     
@@ -967,9 +932,8 @@ def main():
     print("="*70)
     print("✅ Naive Bayes Model: models/pulmo_naive_bayes.pkl")
     print("✅ CNN Model: models/pulmo_cnn.pth")
-    print("📊 Accuracy comparison saved: hybrid_pulmo_accuracy_comparison.png")
     print("📊 Training history saved: hybrid_pulmo_cnn_training_history.png")
-    print("📊 Confusion matrices saved as PNG files")
+    print("📊 Confusion matrix saved: hybrid_pulmo_confusion_matrix.png")
     print("\nModel siap digunakan untuk prediksi hybrid!")
 
 if __name__ == "__main__":

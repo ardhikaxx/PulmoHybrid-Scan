@@ -1,6 +1,6 @@
 {
-    "model_name": "PulmoNB-Scan Classification Model",
-    "algorithm": "Naive Bayes dan CNN Transfer Learning",
+    "model_name": "PulmoHybrid-Scan Classification Model",
+    "algorithm": "Hybrid CNN dan Naive Bayes",
     "version": "1.0",
     "created_date": "03-11-2025",
     "classes": [
@@ -18,5 +18,5 @@
     ],
     "accuracy": "Lihat di hasil training",
     "features_used": 32,
-    "description": "PulmoNB-Scan: Sistem Klasifikasi Citra Medis Kanker Paru-paru (Normal, Jinak, Ganas) Menggunakan Algoritma Naive Bayes dan PyTorch CNN dengan Transfer Learning"
+    "description": "PulmoHybrid-Scan: Sistem Hybrid CNN-Naive Bayes untuk Klasifikasi Citra CT-Scan Kanker Paru-paru"
 }
