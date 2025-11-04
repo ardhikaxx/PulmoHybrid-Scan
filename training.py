@@ -909,7 +909,7 @@ def main():
     # Train hybrid system
     hybrid_classifier.train_hybrid(
         data_dir='data/train',
-        train_dir='data/train'
+        train_dir='data/train',
         val_dir='data/val',
         epochs=35,
         batch_size=8
