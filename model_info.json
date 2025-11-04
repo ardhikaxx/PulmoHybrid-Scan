@@ -1,0 +1,22 @@
+{
+    "model_name": "PulmoNB-Scan Classification Model",
+    "algorithm": "Naive Bayes dan CNN Transfer Learning",
+    "version": "1.0",
+    "created_date": "03-11-2025",
+    "classes": [
+        "normal",
+        "benign",
+        "malignant"
+    ],
+    "input_size": "224x224 pixels",
+    "supported_formats": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".tiff"
+    ],
+    "accuracy": "Lihat di hasil training",
+    "features_used": 32,
+    "description": "PulmoNB-Scan: Sistem Klasifikasi Citra Medis Kanker Paru-paru (Normal, Jinak, Ganas) Menggunakan Algoritma Naive Bayes dan PyTorch CNN dengan Transfer Learning"
+}
