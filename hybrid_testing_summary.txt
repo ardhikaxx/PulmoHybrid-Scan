@@ -1,0 +1,11 @@
+HYBRID PULMO CLASSIFIER - TESTING SUMMARY
+==================================================
+Overall Accuracy: 100.00%
+Total Samples: 1577
+Correct Predictions: 1577
+Incorrect Predictions: 0
+
+Per-class Accuracy:
+  NORMAL: 100.0% (416/416)
+  BENIGN: 100.0% (600/600)
+  MALIGNANT: 100.0% (561/561)

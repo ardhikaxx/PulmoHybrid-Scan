@@ -6,6 +6,9 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
+import cv2
+from matplotlib.patches import Rectangle
+import matplotlib.patches as patches
 
 # Import class hybrid dari training.py
 from training import HybridPulmoClassifier, PulmoNaiveBayesClassifier, PulmoCNNClassifier
@@ -16,6 +19,16 @@ class TestingSystem:
     def __init__(self):
         self.hybrid_classifier = HybridPulmoClassifier()
         self.classes = ['normal', 'benign', 'malignant']
+        self.class_colors = {
+            'normal': '#28a745',    # Hijau
+            'benign': '#ffc107',    # Kuning
+            'malignant': '#dc3545'  # Merah
+        }
+        self.class_indonesia = {
+            'normal': 'NORMAL',
+            'benign': 'JINAK', 
+            'malignant': 'GANAS'
+        }
     
     def load_models(self):
         """Load semua model yang diperlukan"""
@@ -145,14 +158,14 @@ class TestingSystem:
         """Plot confusion matrix untuk data testing"""
         cm = confusion_matrix(true_labels, pred_labels, labels=self.classes)
         
-        plt.figure(figsize=(10, 8))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Oranges',
-                   xticklabels=self.classes, 
-                   yticklabels=self.classes,
-                   annot_kws={"size": 16})
-        plt.xlabel('Predicted', fontsize=14)
-        plt.ylabel('Actual', fontsize=14)
-        plt.title('HybridPulmoClassifier - Testing Confusion Matrix', fontsize=16)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                   xticklabels=[self.class_indonesia[cls] for cls in self.classes], 
+                   yticklabels=[self.class_indonesia[cls] for cls in self.classes],
+                   annot_kws={"size": 14})
+        plt.xlabel('Prediksi', fontsize=12)
+        plt.ylabel('Aktual', fontsize=12)
+        plt.title('HybridPulmoClassifier - Confusion Matrix Testing', fontsize=14)
         plt.tight_layout()
         plt.savefig('hybrid_pulmo_testing_confusion_matrix.png', dpi=300, bbox_inches='tight')
         plt.show()
@@ -190,7 +203,7 @@ class TestingSystem:
         print("✅ Summary saved: hybrid_testing_summary.txt")
     
     def display_sample_predictions(self, results, num_samples=5):
-        """Tampilkan beberapa contoh prediksi"""
+        """Tampilkan beberapa contoh prediksi dengan visualisasi yang informatif"""
         print(f"\n🔍 CONTOH PREDIKSI (acak {num_samples} sample):")
         print("-" * 60)
         
@@ -200,15 +213,197 @@ class TestingSystem:
             samples = random.sample(results, num_samples)
         else:
             samples = results
-        
+    
+        # Tampilkan di console dengan info source
         for i, result in enumerate(samples, 1):
             status = "✅ BENAR" if result['correct'] else "❌ SALAH"
-            print(f"{i}. File: {result['file']}")
-            print(f"   Actual: {result['actual'].upper()}")
-            print(f"   Predicted: {result['predicted'].upper()}")
+            
+            # Cari source folder untuk info
+            image_path = self.find_image_path(result['file'])
+            source = "TEST" if image_path and "test" in image_path else "TRAIN/VAL"
+            
+            print(f"{i}. File: {result['file']} [{source}]")
+            print(f"   Aktual: {self.class_indonesia[result['actual']]}")
+            print(f"   Prediksi: {self.class_indonesia[result['predicted']]}")
             print(f"   Confidence: {result['confidence']*100:.1f}%")
             print(f"   Status: {status}")
             print()
+        
+        # Buat visualisasi dengan gambar dan analisis
+        self.plot_detailed_sample_predictions(samples)
+
+    def find_image_path(self, filename):
+        """Cari path gambar dengan prioritas folder test"""
+        # Normalize filename
+        clean_filename = filename.strip()
+        
+        # Daftar folder dengan prioritas
+        priority_folders = [
+            "data/test/normal", "data/test/benign", "data/test/malignant"  # Test first
+        ]
+        
+        backup_folders = [
+            "data/train/normal", "data/train/benign", "data/train/malignant",
+            "data/val/normal", "data/val/benign", "data/val/malignant"
+        ]
+        
+        # Cari di priority folders (test) dulu
+        for folder in priority_folders:
+            if not os.path.exists(folder):
+                continue
+                
+            # Exact match
+            exact_path = os.path.join(folder, clean_filename)
+            if os.path.exists(exact_path):
+                return exact_path
+            
+            # Case insensitive match
+            for file_in_folder in os.listdir(folder):
+                if file_in_folder.lower() == clean_filename.lower():
+                    return os.path.join(folder, file_in_folder)
+            
+            # Partial match
+            for file_in_folder in os.listdir(folder):
+                if clean_filename.lower() in file_in_folder.lower():
+                    return os.path.join(folder, file_in_folder)
+        
+        # Jika tidak ditemukan di test, cari di backup folders
+        for folder in backup_folders:
+            if not os.path.exists(folder):
+                continue
+                
+            exact_path = os.path.join(folder, clean_filename)
+            if os.path.exists(exact_path):
+                return exact_path
+            
+            for file_in_folder in os.listdir(folder):
+                if file_in_folder.lower() == clean_filename.lower():
+                    return os.path.join(folder, file_in_folder)
+        
+        return None
+
+    def detect_abnormal_regions(self, image_path, predicted_class):
+        """Deteksi area abnormal pada gambar (simulasi)"""
+        try:
+            # Load gambar
+            img = cv2.imread(image_path)
+            if img is None:
+                return []
+            
+            # Konversi ke grayscale
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            # Deteksi edges (simulasi deteksi abnormalitas)
+            edges = cv2.Canny(gray, 50, 150)
+            
+            # Cari contours
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            # Filter contours berdasarkan area
+            regions = []
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                if area > 100:  # Filter area kecil
+                    x, y, w, h = cv2.boundingRect(contour)
+                    regions.append((x, y, w, h))
+            
+            return regions[:3]  # Return maksimal 3 region
+            
+        except Exception as e:
+            print(f"❌ Error dalam deteksi region: {e}")
+            return []
+
+    def plot_detailed_sample_predictions(self, samples):
+        """Plot contoh prediksi dengan visualisasi detail dan area terdeteksi"""
+        import matplotlib.image as mpimg
+        
+        n_samples = len(samples)
+        
+        # Buat layout yang lebih compact - semua dalam satu baris
+        fig, axes = plt.subplots(1, n_samples, figsize=(4*n_samples, 5))
+        
+        if n_samples == 1:
+            axes = [axes]
+        
+        for i, result in enumerate(samples):
+            ax = axes[i]
+            
+            try:
+                # Cari path gambar - prioritas folder test
+                image_path = self.find_image_path(result['file'])
+                
+                if image_path and os.path.exists(image_path):
+                    # Load dan tampilkan gambar
+                    img = mpimg.imread(image_path)
+                    ax.imshow(img, cmap='gray')
+                    
+                    # Deteksi area abnormal (simulasi)
+                    if result['predicted'] != 'normal':
+                        regions = self.detect_abnormal_regions(image_path, result['predicted'])
+                        for j, (x, y, w, h) in enumerate(regions):
+                            # Gambar bounding box dengan warna berdasarkan kelas
+                            color = self.class_colors[result['predicted']]
+                            rect = patches.Rectangle((x, y), w, h, 
+                                                   linewidth=2, 
+                                                   edgecolor=color, 
+                                                   facecolor='none',
+                                                   alpha=0.8)
+                            ax.add_patch(rect)
+                            
+                            # Tambahkan label
+                            ax.text(x, y-5, f'Area {j+1}', 
+                                  color=color, fontsize=8, fontweight='bold',
+                                  bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+                    
+                    # Border dengan warna berdasarkan status
+                    border_color = '#28a745' if result['correct'] else '#dc3545'
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor(border_color)
+                        spine.set_linewidth(3)
+                        
+                else:
+                    # Placeholder jika gambar tidak ditemukan
+                    ax.text(0.5, 0.5, "❌\nGambar Tidak\nDitemukan", 
+                           ha='center', va='center', transform=ax.transAxes,
+                           fontsize=10, color='red', fontweight='bold',
+                           bbox=dict(boxstyle='round', facecolor='lightgray'))
+                    
+            except Exception as e:
+                ax.text(0.5, 0.5, "❌\nError Load\nGambar", 
+                       ha='center', va='center', transform=ax.transAxes,
+                       fontsize=10, color='red', fontweight='bold',
+                       bbox=dict(boxstyle='round', facecolor='lightgray'))
+            
+            ax.axis('off')
+            
+            # Buat informasi hasil prediksi di bawah gambar
+            status = "✅ BENAR" if result['correct'] else "❌ SALAH"
+            status_color = '#28a745' if result['correct'] else '#dc3545'
+            
+            # Tampilkan source folder
+            folder_source = "TEST" if image_path and "test" in image_path else "TRAIN/VAL"
+            
+            # Buat title dengan informasi lengkap
+            filename_short = result['file'][:15] + "..." if len(result['file']) > 18 else result['file']
+            
+            title = f"{filename_short}\n"
+            title += f"[{folder_source}]\n"
+            title += f"Aktual: {self.class_indonesia[result['actual']]}\n"
+            title += f"Prediksi: {self.class_indonesia[result['predicted']]}\n"
+            title += f"Confidence: {result['confidence']*100:.1f}%\n"
+            title += f"{status}"
+            
+            ax.set_title(title, fontsize=10, pad=15, fontweight='bold', color=status_color)
+        
+        plt.suptitle('HASIL DETEKSI KANKER PARU-PARU - HYBRID PULMO CLASSIFIER', 
+                     fontsize=14, fontweight='bold', y=0.95)
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.85)
+        plt.show()
+        
+        # Simpan gambar
+        plt.savefig('hasil_deteksi_detail.png', dpi=300, bbox_inches='tight')
+        print("✅ Hasil deteksi detail disimpan: hasil_deteksi_detail.png")
     
     def predict_single_image(self, image_path):
         """Prediksi single image dengan sistem hybrid"""
@@ -281,7 +476,7 @@ class TestingSystem:
                 percentage = (count / len(results)) * 100
                 confidence_avg = np.mean([r['confidence'] for r in results if r['prediction'] == class_name]) * 100 if count > 0 else 0
                 
-                print(f"   {class_name.upper()}: {count} gambar ({percentage:.1f}%)")
+                print(f"   {self.class_indonesia[class_name]}: {count} gambar ({percentage:.1f}%)")
                 if count > 0:
                     print(f"     📊 Confidence rata-rata: {confidence_avg:.1f}%")
             
@@ -289,6 +484,7 @@ class TestingSystem:
             batch_df = pd.DataFrame([{
                 'file': r['file'],
                 'prediction': r['prediction'],
+                'prediction_id': self.class_indonesia[r['prediction']],
                 'confidence': r['confidence']
             } for r in results])
             
