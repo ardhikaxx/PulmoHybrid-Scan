@@ -27,5 +27,5 @@ PulmoHybrid-Scan adalah sistem kecerdasan buatan canggih yang mengintegrasikan m
 - Matplotlib & Seaborn - Plotting dan visualisasi data
 - Confusion Matrix - Evaluasi performa model
 
-# ⚠️Disclaimer
+## ⚠️Disclaimer
 Sistem ini merupakan alat bantu diagnosis dan tidak menggantikan konsultasi medis profesional. Selalu konsultasikan dengan dokter spesialis untuk diagnosis dan penanganan medis.
